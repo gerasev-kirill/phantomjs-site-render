@@ -35,6 +35,7 @@ function getHtmlFromUrl(site_url, res){
             content.then(
                 obj =>{
                     console.log(obj);
+                    res.setHeader('Content-Type', 'text/html');
                     res.write(obj);
                     return res.end();
                 }
