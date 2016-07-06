@@ -1,14 +1,14 @@
 {
-  "name": "openshift-cartridge-nodejs-template",
+  "name": "phantomjs-site-render",
   "version": "1.0.1",
-  "description": "Custom Node.js cartridge for OpenShift - sample application",
+  "description": "Site render with phantomjs",
   "private": true,
   "main": "start.js",
   "scripts": {
     "start": "node --use_strict start.js"
   },
-  "author": "Ionut-Cristian Florescu <ionut.florescu@gmail.com>",
-  "license": "ISC",
+  "author": "Gerasev Kirill <gerasev.kirill@gmail.com>",
+  "license": "BSD",
   "dependencies": {
     "phantom": "^2.0.10"
   }
