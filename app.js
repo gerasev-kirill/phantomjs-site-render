@@ -1,9 +1,5 @@
 "use strict";
 const http       = require('http'),
-    fs           = require('fs'),
-    path         = require('path'),
-    contentTypes = require('./utils/content-types'),
-    sysInfo      = require('./utils/sys-info'),
     env          = process.env,
     phantom      = require('phantom');
 
@@ -30,11 +26,9 @@ function getHtmlFromUrl(site_url, res){
             return page.open(site_url);
         })
         .then(status => {
-            console.log('STATUS = '+status);
             var content = sitepage.property('content');
             content.then(
                 obj =>{
-                    console.log(obj);
                     res.setHeader('Content-Type', 'text/html');
                     res.write(obj);
                     return res.end();
@@ -42,30 +36,30 @@ function getHtmlFromUrl(site_url, res){
             );
         })
         .catch(error => {
-            console.log('ERROR = '+error);
-            res.write('');
+            res.setHeader('Content-Type', 'text/html');
+            res.write('<small style="color:red;text-align:center;">SITE RENDER ERROR: '+error+'</small>');
             return res.end();
         });
 }
 
 
+
+
+
+
+
+
+
 createPhantomInstace();
-
-
-
-
-
-
 
 let server = http.createServer(function (req, res) {
     let url = req.url;
-    if (url == '/') {
-        url += 'index.html';
-    }
 
-    if (url.startsWith('/render')){
+    if (url.startsWith('/render') || url == '/'){
         var site_url = url.split('$$$$')[1];
-        console.log('In render');
+        if (!site_url){
+            return res.end();
+        }
         try{
             getHtmlFromUrl(site_url,res);
         }
@@ -84,24 +78,9 @@ let server = http.createServer(function (req, res) {
     if (url == '/health') {
         res.writeHead(200);
         res.end();
-    } else if (url.indexOf('/info/') == 0) {
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Cache-Control', 'no-cache, no-store');
-        res.end(JSON.stringify(sysInfo[url.slice(6)]()));
     } else {
-        fs.readFile('./static' + url, function (err, data) {
-            if (err) {
-                res.writeHead(404);
-                res.end();
-            } else {
-                let ext = path.extname(url).slice(1);
-                res.setHeader('Content-Type', contentTypes[ext]);
-                if (ext === 'html') {
-                    res.setHeader('Cache-Control', 'no-cache, no-store');
-                }
-                res.end(data);
-            }
-        });
+        res.writeHead(404);
+        res.end();
     }
 });
 
