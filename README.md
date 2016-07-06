@@ -17,7 +17,7 @@ node .
 ```
 
 
-now visit http://localhost:3000/render$$$$https://en.wikipedia.org
+now visit  [http://localhost:3000/render$$$$https://en.wikipedia.org](http://localhost:3000/render$$$$https://en.wikipedia.org)
 
 if all ok, you will see
 ![wiki.png](https://github.com/gerasev-kirill/phantomjs-site-render/blob/master/wiki.png)
