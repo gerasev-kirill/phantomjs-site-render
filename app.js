@@ -7,6 +7,7 @@ const http       = require('http'),
 
 
 var phInstance = null;
+var allowed404Pages = ["/en/404", "/ru/404", "/ua/404", "/cz/404", "/de/404", "/404"]
 
 function createPhantomInstace(cb){
     phantom.create()
@@ -20,6 +21,12 @@ function createPhantomInstace(cb){
 
 function getHtmlFromUrl(site_url, res){
     var sitepage = null;
+    var handleError = function(error){
+        res.setHeader('Content-Type', 'text/html');
+        res.write('<small style="color:red;text-align:center;">SITE RENDER ERROR: '+error+'</small>');
+        return res.end();
+    }
+
     phInstance.createPage()
         .then(page => {
             sitepage = page;
@@ -29,16 +36,31 @@ function getHtmlFromUrl(site_url, res){
             var content = sitepage.property('content');
             content.then(
                 obj =>{
-                    res.setHeader('Content-Type', 'text/html');
-                    res.write(obj);
-                    return res.end();
+                    return new Promise(function(resolve, reject){
+                        sitepage.evaluate(function(){
+                            return location.pathname;
+                        })
+                        .then(url => {
+                            url = url || '';
+                            if (url[url.length-1] == '/'){
+                                url = url.slice(0, -1)
+                            }
+                            if (allowed404Pages.indexOf(url)>-1){
+                                res.statusCode = 404;
+                            }
+                            res.setHeader('Content-Type', 'text/html');
+                            res.write(obj);
+                            return resolve(res.end());
+                        })
+                        .catch(error => {
+                            return handleError(error);
+                        });
+                    });
                 }
             );
         })
         .catch(error => {
-            res.setHeader('Content-Type', 'text/html');
-            res.write('<small style="color:red;text-align:center;">SITE RENDER ERROR: '+error+'</small>');
-            return res.end();
+            return handleError(error);
         });
 }
 
@@ -84,6 +106,6 @@ let server = http.createServer(function (req, res) {
     }
 });
 
-server.listen(env.NODE_PORT || 3001, env.NODE_IP || 'localhost', function () {
+server.listen(env.NODE_PORT || 3001, function () {
     console.log(`Application worker ${process.pid} started...`);
 });
