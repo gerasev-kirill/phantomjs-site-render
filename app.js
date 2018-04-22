@@ -1,7 +1,9 @@
 "use strict";
 const http       = require('http'),
     env          = process.env,
-    phantom      = require('phantom');
+    phantom      = require('phantom'),
+    request      = require("request"),
+    URL          = require('url').URL;
 
 
 
@@ -19,6 +21,29 @@ function createPhantomInstace(cb){
         });
 }
 
+function dumpUrlToString(self){
+    var str = self.origin+self.pathname;
+    var params = self.searchParams;
+    params.sort();
+    params = params.toString();
+    if (params){
+        return self.origin + self.pathname + '?' + params;
+    }
+    return self.origin + self.pathname;
+}
+
+
+function composeUrl(url, origin){
+    if (url[0] == '/'){
+        return new URL(url, origin);
+    }
+    if (url.indexOf('https://') === -1 && url.indexOf('http://') == -1){
+        url = "http://"+url;
+    }
+    return new URL(url);
+}
+
+
 function getHtmlFromUrl(site_url, res){
     var sitepage = null;
     var handleError = function(error){
@@ -33,31 +58,87 @@ function getHtmlFromUrl(site_url, res){
             return page.open(site_url);
         })
         .then(status => {
-            var content = sitepage.property('content');
-            content.then(
-                obj =>{
-                    return new Promise(function(resolve, reject){
-                        sitepage.evaluate(function(){
-                            return location.pathname;
-                        })
-                        .then(url => {
-                            url = url || '';
-                            if (url[url.length-1] == '/'){
-                                url = url.slice(0, -1)
-                            }
-                            if (allowed404Pages.indexOf(url)>-1){
-                                res.statusCode = 404;
-                            }
-                            res.setHeader('Content-Type', 'text/html');
-                            res.write(obj);
-                            return resolve(res.end());
-                        })
-                        .catch(error => {
-                            return handleError(error);
+            function returnDefaultResponse(){
+                sitepage.property('content').then(
+                    obj =>{
+                        return new Promise(function(resolve, reject){
+                            sitepage.evaluate(function(){
+                                return location.pathname;
+                            })
+                            .then(url => {
+                                url = url || '';
+                                if (url[url.length-1] == '/'){
+                                    url = url.slice(0, -1)
+                                }
+                                if (allowed404Pages.indexOf(url)>-1){
+                                    res.statusCode = 404;
+                                }
+                                res.setHeader('Content-Type', 'text/html');
+                                res.write(obj);
+                                return resolve(res.end());
+                            })
+                            .catch(error => {
+                                return handleError(error);
+                            });
                         });
-                    });
+                    }
+                );
+            }
+
+
+            sitepage.evaluate(function(){
+                try {
+                    return {
+                        baseUrl: CMS_BASE_URL || location.origin,
+                        dbBucket: CMS_DB_BUCKET,
+                        locationOrigin:location.origin,
+                    }
+                } catch (e) {
+                    return {
+                        locationOrigin: location.origin
+                    }
                 }
-            );
+            }).then(cms_vars=>{
+                var options = {
+                    url:cms_vars.baseUrl+'/api/v1/CmsSettings/findOne?x_db_bucket',
+                    json: true,
+                    headers:{
+                        'X-Db-Bucket': cms_vars.dbBucket
+                    }
+                };
+                request(options, function(err, response, body){
+                    if (err){
+                        return returnDefaultResponse();
+                    }
+                    if (!body || !body.siteRedirections || !body.siteRedirections.length){
+                        return returnDefaultResponse();
+                    }
+                    var r, redirectCode, fromUrl, toUrl,
+                        currentUrl = composeUrl(site_url);
+                    for (var i = 0; i < body.siteRedirections.length; i++) {
+                        r = body.siteRedirections[i];
+                        if (!r || !r.fromUrl || !r.toUrl){
+                            continue;
+                        }
+                        fromUrl = composeUrl(r.fromUrl, cms_vars.locationOrigin);
+                        toUrl = composeUrl(r.toUrl, cms_vars.locationOrigin);
+                        if (dumpUrlToString(fromUrl) === dumpUrlToString(currentUrl) && dumpUrlToString(toUrl) !== dumpUrlToString(fromUrl)){
+                            console.log('redirectTO: ', toUrl);
+                            return new Promise(function(resolve, reject){
+                                res.writeHead(r.redirectCode || 301, {
+                                    Location: toUrl.toString()
+                                });
+                                return resolve(res.end());
+                            })
+                        }
+                    }
+                    // ни одно правило не подошло
+                    return returnDefaultResponse();
+                });
+
+            });
+
+
         })
         .catch(error => {
             return handleError(error);
