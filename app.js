@@ -55,6 +55,11 @@ function getHtmlFromUrl(site_url, res){
     phInstance.createPage()
         .then(page => {
             sitepage = page;
+            page.setContent("", site_url); // doesn't actually open any page
+            // gdpr storage
+            page.evaluate(function(){
+                localStorage.setItem("$lb$gdprPermission", JSON.stringify({"app":true, "*": true, "googleTagManager": true}));
+            });
             return page.open(site_url);
         })
         .then(status => {
