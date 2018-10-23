@@ -3,6 +3,7 @@ const http       = require('http'),
     env          = process.env,
     phantom      = require('phantom'),
     request      = require("request"),
+    cheerio      = require('cheerio'),
     URL          = require('url').URL;
 
 
@@ -60,6 +61,20 @@ function getHtmlFromUrl(site_url, res){
             page.evaluate(function(){
                 localStorage.setItem("$lb$gdprPermission", JSON.stringify({"app":true, "*": true, "googleTagManager": true}));
             });
+            page.property('onError', function(msg, trace) {
+                var msgStack = ['ERROR: ' + msg];
+                if (trace && trace.length) {
+                    msgStack.push('TRACE:');
+                    trace.forEach(function(t) {
+                        msgStack.push(' -> ' + t.file + ': ' + t.line + (t.function ? ' (in function "' + t.function +'")' : ''));
+                    });
+                }
+                console.error(msgStack.join('\n'));
+            });
+            page.property('onConsoleMessage', function(msg, lineNum, sourceId) {
+                console.log('CONSOLE: ' + msg + ' (from line #' + lineNum + ' in "' + sourceId + '")');
+            });
+
             return page.open(site_url);
         })
         .then(status => {
@@ -79,7 +94,10 @@ function getHtmlFromUrl(site_url, res){
                                     res.statusCode = 404;
                                 }
                                 res.setHeader('Content-Type', 'text/html');
-                                res.write(obj);
+                                // выкидываем все теги <script> чтоб гуглебот не запускал снова js и не давился ошибками
+                                var $ = cheerio.load(obj, {decodeEntities: true});
+                                $('script').remove();
+                                res.write($.html({decodeEntities: false}));
                                 return resolve(res.end());
                             })
                             .catch(error => {
