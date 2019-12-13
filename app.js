@@ -80,31 +80,57 @@ function getHtmlFromUrl(site_url, res){
         .then(status => {
             function returnDefaultResponse(){
                 setTimeout(function(){
-                    sitepage.property('content').then(
-                        obj =>{
-                            return new Promise(function(resolve, reject){
-                                sitepage.evaluate(function(){
-                                    return location.pathname;
-                                })
-                                .then(url => {
-                                    url = url || '';
-                                    if (url[url.length-1] == '/'){
-                                        url = url.slice(0, -1)
-                                    }
-                                    if (allowed404Pages.indexOf(url)>-1){
-                                        res.statusCode = 404;
-                                    }
-                                    res.setHeader('Content-Type', 'text/html');
-                                    // выкидываем все теги <script> чтоб гуглебот не запускал снова js и не давился ошибками
-                                    var $ = cheerio.load(obj, {decodeEntities: true});
-                                    $('script').remove();
-                                    res.write($.html({decodeEntities: false}));
-                                    return resolve(res.end());
-                                })
-                                .catch(error => {
-                                    return handleError(error);
-                                });
-                            });
+                    sitepage.evaluate(function(){
+                        var clN = null;
+                        var hasPreloader = false;
+                        var isReady = false
+                        for (var i = 0; i < document.body.childNodes.length; i++) {
+                            clN = document.body.childNodes[i].className || '';
+                            if (clN.indexOf('preloader') > -1){
+                                // нашли прелоадер
+                                hasPreloader = true;
+                                if (clN.indexOf('ng-hide') > -1){
+                                    isReady = true;
+                                }
+                            }
+                        }
+                        if (hasPreloader){
+                            return {isReady: isReady, hasPreloader: hasPreloader};
+                        }
+                        return {isReady: true};
+                    }).then(
+                        result => {
+                            console.log('READY INFO', result);
+                            if (!result.isReady){
+                                return returnDefaultResponse();
+                            }
+                            sitepage.property('content').then(
+                                obj =>{
+                                    return new Promise(function(resolve, reject){
+                                        sitepage.evaluate(function(){
+                                            return location.pathname;
+                                        })
+                                        .then(url => {
+                                            url = url || '';
+                                            if (url[url.length-1] == '/'){
+                                                url = url.slice(0, -1)
+                                            }
+                                            if (allowed404Pages.indexOf(url)>-1){
+                                                res.statusCode = 404;
+                                            }
+                                            res.setHeader('Content-Type', 'text/html');
+                                            // выкидываем все теги <script> чтоб гуглебот не запускал снова js и не давился ошибками
+                                            var $ = cheerio.load(obj, {decodeEntities: true});
+                                            $('script').remove();
+                                            res.write($.html({decodeEntities: false}));
+                                            return resolve(res.end());
+                                        })
+                                        .catch(error => {
+                                            return handleError(error);
+                                        });
+                                    });
+                                }
+                            );
                         }
                     );
                 }, 2000);
